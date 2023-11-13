@@ -1,36 +1,36 @@
-# Usar Alpine Linux como imagen base
+# Utilizamos Alpine Linux como imagen base
 FROM alpine:latest
 
-# Instalar Apache, PHP y las extensiones necesarias, y Composer
-RUN apk add --no-cache apache2 php7 php7-apache2 php7-pdo php7-pdo_mysql php7-json php7-openssl php7-curl \
-    php7-zlib php7-xml php7-phar php7-intl php7-dom php7-xmlreader php7-ctype php7-session php7-mbstring \
-    && php7 -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
-    && php7 -r "if (hash_file('SHA384', 'composer-setup.php') === 'a5c698ffe4b8e2aabd3f7023a84c8e8f4b4fe4d5e5bf37eeac6ed2316e2b33b7d4b5b913c77c9a6b0800cfe09a4927a1') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;" \
-    && php7 composer-setup.php \
-    && php7 -r "unlink('composer-setup.php');"
+# Instalamos Apache2 y PHP 8 junto con los módulos necesarios
+RUN apk add --no-cache apache2 php8 php8-apache2 php8-pdo php8-pdo_mysql php8-json php8-openssl php8-curl \
+    php8-zlib php8-xml php8-phar php8-intl php8-dom php8-xmlreader php8-ctype php8-session php8-mbstring \
+    apache2-utils
 
-# Configurar Apache
-COPY apache.conf /etc/apache2/httpd.conf
+# Instalamos Composer para la gestión de dependencias de PHP
+RUN php8 -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+    && php8 composer-setup.php --install-dir=/usr/local/bin --filename=composer \
+    && php8 -r "unlink('composer-setup.php');"
 
-# Exponer el puerto 8000
+# Configuramos Apache
+RUN sed -i 's/#LoadModule rewrite_module/LoadModule rewrite_module/' /etc/apache2/httpd.conf
+RUN echo "ServerName localhost" >> /etc/apache2/httpd.conf
+
+# Exponemos el puerto 8000
 EXPOSE 8000
 
-# Copiar los archivos del directorio actual a /var/www
-COPY . /var/www
+# Configuramos el directorio de trabajo
+WORKDIR /var/www/localhost/htdocs
 
-# Establecer el directorio de trabajo
-WORKDIR /var/www
+# Copiamos los archivos de nuestro proyecto al contenedor
+COPY . /var/www/localhost/htdocs
 
-# Instalar las dependencias de PHP usando Composer
-RUN php7 /usr/local/bin/composer install
+# Asignamos permisos al directorio de Apache
+RUN chown -R apache:apache /var/www
 
-# Ejecutar los comandos de Artisan
-RUN php7 artisan migrate
-RUN php7 artisan make:generate
-RUN php7 artisan migrate
-# Iniciar el servidor web de Apache en segundo plano
-CMD ["apachectl", "-D", "FOREGROUND"]
+# Ejecutamos comandos de Artisan
+RUN php8 artisan migrate
+RUN php8 artisan make:generate
+RUN php8 artisan serve --host=0.0.0.0 --port=8000
 
-
-# Iniciar Apache
+# Especificamos el comando por defecto para iniciar Apache
 CMD ["httpd", "-D", "FOREGROUND"]
